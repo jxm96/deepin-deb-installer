@@ -24,7 +24,7 @@ if (NOT DEFINED VERSION)
 endif ()
 
 #common resource names
-set(APP_RES_DIR "../../assets")
+set(APP_RES_DIR "${CMAKE_SOURCE_DIR}/assets")
 set(APP_BIN_NAME "deepin-deb-installer")
 set(APP_TRANS_SCRIPT "${APP_RES_DIR}/translate_generation.sh")
 set(APP_DESKTOP "${APP_RES_DIR}/deepin-deb-installer.desktop")
@@ -90,7 +90,7 @@ set(LINK_LIBS
 )
 
 
-set(TS_DIR "../../translations")
+set(TS_DIR "${CMAKE_SOURCE_DIR}/translations")
 set(TS_FILES
     "${TS_DIR}/${PROJECT_NAME}_en_US.ts"
 )
@@ -101,7 +101,7 @@ foreach(_ts_file ${TS_FILES})
 endforeach()
 #lupdate end
 
-file (GLOB DTNG_TS_FILES ../../translations/*.ts)
+file (GLOB DTNG_TS_FILES ${CMAKE_SOURCE_DIR}/translations/*.ts)
 qt5_create_translation(DTNG_QM_FILES
     ${DTNG_TS_FILES}
      ${DTNG_QM_FILES}
@@ -153,10 +153,10 @@ set(CMAKE_INSTALL_PREFIX /usr)
 # Install files
 install(TARGETS deepin-deb-installer DESTINATION bin)
 
-file(GLOB APP_QM_FILES "../../translations/*.qm")
+file(GLOB APP_QM_FILES "${CMAKE_SOURCE_DIR}/translations/*.qm")
 install(FILES ${APP_QM_FILES} DESTINATION share/deepin-deb-installer/translations)
 install(FILES ${APP_DESKTOP} DESTINATION share/applications)
 install(FILES ${APP_CONFIG} DESTINATION share/deepin-deb-installer)
-install(FILES ../../assets/com.deepin.pkexec.aptInstallDepend.policy
+install(FILES ${CMAKE_SOURCE_DIR}/assets/com.deepin.pkexec.aptInstallDepend.policy
                     DESTINATION ${CMAKE_INSTALL_PREFIX}/share/polkit-1/actions)
                 # Install files
