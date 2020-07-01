@@ -65,6 +65,7 @@ configure_file(${APP_RES_DIR}/environments.h.in environments.h @ONLY)
 
 add_definitions(-DUSE_POLKIT -DENABLE_INACTIVE_DISPLAY)
 # Find the library
+
 find_package(PkgConfig REQUIRED)
 find_package(Qt5Widgets REQUIRED)
 find_package(Qt5Gui REQUIRED)
