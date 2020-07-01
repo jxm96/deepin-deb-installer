@@ -19,7 +19,8 @@
 
 cmake_minimum_required(VERSION 3.7)
 if (NOT DEFINED VERSION)
-    set(VERSION 1.2.2)
+    message(WARNING "Not defined version ,about dialog version set 5.3.9")
+    set(VERSION 5.3.9)
 endif ()
 
 #common resource names
