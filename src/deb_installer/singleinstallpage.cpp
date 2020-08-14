@@ -75,7 +75,6 @@ SingleInstallPage::SingleInstallPage(DebListModel *model, QWidget *parent)
 void SingleInstallPage::initUI()
 {
     QApplication::restoreOverrideCursor();
-    qApp->installEventFilter(this);
     QFontInfo fontinfo = this->fontInfo();
     int fontsize = fontinfo.pixelSize();
     initContentLayout();
@@ -456,7 +455,6 @@ void SingleInstallPage::reinstall()
 
     m_operate = Reinstall;
     m_packagesModel->installPackages();
-
 }
 void SingleInstallPage::install()
 {
@@ -518,7 +516,6 @@ void SingleInstallPage::onOutputAvailable(const QString &output)
     m_installProcessView->appendText(output.trimmed());
     if (!m_infoControlButton->isVisible())
         m_infoControlButton->setVisible(true);
-
     // pump progress
     if (m_progress->value() < 90) m_progress->setValue(m_progress->value() + 10);
 
@@ -652,9 +649,11 @@ void SingleInstallPage::setPackageInfo()
 
     // package install status
     const QModelIndex index = m_packagesModel->index(0);
-    // fix bug:42285 提高 依赖状态的优先级  依赖状态 > 安装状态
+    //fix bug:42285 调整状态优先级， 依赖状态 > 安装状态
+    //否则会导致安装不同版本的包（依赖不同）时安装依赖出现问题（包括界面混乱、无法下载依赖等）
     const int dependsStat = index.data(DebListModel::PackageDependsStatusRole).toInt();
-    qDebug() << "set package info" << "depend status" << dependsStat;
+    qDebug() << "set package info"
+             << "depend status" << dependsStat;
     if (dependsStat == DebListModel::DependsBreak || dependsStat == DebListModel::DependsAuthCancel) {
         m_tipsLabel->setText(index.data(DebListModel::PackageFailReasonRole).toString());
         m_tipsLabel->setCustomDPalette(DPalette::TextWarning);
@@ -665,7 +664,6 @@ void SingleInstallPage::setPackageInfo()
         m_backButton->setVisible(true);
         return;
     }
-
     const int installStat = index.data(DebListModel::PackageVersionStatusRole).toInt();
 
     const bool installed = installStat != DebListModel::NotInstalled;
@@ -689,15 +687,12 @@ void SingleInstallPage::setPackageInfo()
         }
         return;
     }
-
-    // package depends status
 }
 
 void SingleInstallPage::setEnableButton(bool bEnable)
 {
     // fix bug: 36120 After the uninstall authorization is canceled, hide the uninstall details and display the version status
     m_tipsLabel->setVisible(true);
-    m_infoControlButton->setVisible(false);
     m_installButton->setEnabled(bEnable);
     m_reinstallButton->setEnabled(bEnable);
     m_uninstallButton->setEnabled(bEnable);
@@ -804,7 +799,7 @@ void SingleInstallPage::setCancelAuthOrAuthDependsErr()
     } else {
         m_confirmButton->setVisible(false);
         m_backButton->setVisible(false);
-        qDebug() << "operate Button";
+        //fix bug 42285: 在升级安装wine应用（wine->wine5）,依赖安装后，界面显示错乱。
         const int installStat = index.data(DebListModel::PackageVersionStatusRole).toInt();
         if (installStat == DebListModel::NotInstalled) {
             m_installButton->setVisible(true);
