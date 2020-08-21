@@ -80,12 +80,13 @@ public:
         m_end = m_steps.takeFirst();
     }
 
-    void Update() {
+    void Update()
+    {
         int progress;
         if (Percent < 101) {
             progress = qRound(m_begin + qreal(Percent / 100.0) * (m_end - m_begin));
             if (m_lastProgress == progress)
-                        return;
+                return;
         } else {
             progress = 101;
         }
@@ -95,7 +96,8 @@ public:
             m_trans->setProgress(progress);
     }
 
-    void Done() {
+    void Done()
+    {
         // Make sure the progress is set correctly
         m_lastProgress = m_end;
         // Update beginning progress for the next "step"
@@ -312,7 +314,7 @@ void AptWorker::updateCache()
             m_trans->setError(QApt::FetchError);
 
             std::string message;
-            while(_error->PopMessage(message))
+            while (_error->PopMessage(message))
                 m_trans->setErrorDetails(m_trans->errorDetails() +
                                          QString::fromStdString(message));
         }
@@ -417,8 +419,7 @@ bool AptWorker::markChanges()
     if (_error->PendingError() && ((*m_cache)->BrokenCount() == 0))
         _error->Discard(); // We had dep errors, but fixed them
 
-    if (_error->PendingError())
-    {
+    if (_error->PendingError()) {
         // We've failed to mark the packages
         m_trans->setError(QApt::MarkingError);
         std::string message;
@@ -454,7 +455,7 @@ void AptWorker::commitChanges()
 
     // Populate the fetcher with the needed archives
     if (!packageManager->GetArchives(&fetcher, m_cache->GetSourceList(), m_records) ||
-        _error->PendingError()) {
+            _error->PendingError()) {
         m_trans->setError(QApt::FetchError);
         delete acquire;
         return;
@@ -466,17 +467,16 @@ void AptWorker::commitChanges()
 
     struct statvfs Buf;
     std::string OutputDir = _config->FindDir("Dir::Cache::Archives");
-    if (statvfs(OutputDir.c_str(),&Buf) != 0) {
+    if (statvfs(OutputDir.c_str(), &Buf) != 0) {
         m_trans->setError(QApt::DiskSpaceError);
         delete acquire;
         return;
     }
 
-    if (unsigned(Buf.f_bfree) < (FetchBytes - FetchPBytes)/Buf.f_bsize) {
+    if (unsigned(Buf.f_bfree) < (FetchBytes - FetchPBytes) / Buf.f_bsize) {
         struct statfs Stat;
         if (statfs(OutputDir.c_str(), &Stat) != 0 ||
-            unsigned(Stat.f_type)            != RAMFS_MAGIC)
-        {
+                unsigned(Stat.f_type)            != RAMFS_MAGIC) {
             m_trans->setError(QApt::DiskSpaceError);
             delete acquire;
             return;
@@ -505,7 +505,7 @@ void AptWorker::commitChanges()
 
             // Wait until the user approves, disapproves, or cancels the transaction
             while (m_trans->isPaused())
-                 usleep(200000);
+                usleep(200000);
         }
 
         if (!m_trans->allowUntrusted()) {
@@ -536,9 +536,9 @@ void AptWorker::commitChanges()
 
     bool failed = false;
     for (auto i = fetcher.ItemsBegin(); i != fetcher.ItemsEnd(); ++i) {
-        if((*i)->Status == pkgAcquire::Item::StatDone && (*i)->Complete)
+        if ((*i)->Status == pkgAcquire::Item::StatDone && (*i)->Complete)
             continue;
-        if((*i)->Status == pkgAcquire::Item::StatIdle)
+        if ((*i)->Status == pkgAcquire::Item::StatIdle)
             continue;
 
         failed = true;
@@ -647,14 +647,14 @@ void AptWorker::installFile()
     std::vector<std::string> archs = APT::Configuration::getArchitectures(false);
 
     for (std::string &arch : archs)
-         archList.append(QString::fromStdString(arch));
+        archList.append(QString::fromStdString(arch));
 
     if (!archList.contains(debArch)) {
         m_trans->setError(QApt::WrongArchError);
         m_trans->setErrorDetails(debArch);
         return;
     }
-
+//
     m_dpkgProcess = new QProcess(this);
     setenv("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", 1);
     setenv("DEBIAN_FRONTEND", "passthrough", 1);
@@ -662,8 +662,8 @@ void AptWorker::installFile()
     m_dpkgProcess->start("dpkg", QStringList() << "-i" << m_trans->filePath().replace(" ", "\\ "));
     connect(m_dpkgProcess, SIGNAL(started()), this, SLOT(dpkgStarted()));
     connect(m_dpkgProcess, SIGNAL(readyRead()), this, SLOT(updateDpkgProgress()));
-    connect(m_dpkgProcess, SIGNAL(finished(int,QProcess::ExitStatus)),
-            this, SLOT(dpkgFinished(int,QProcess::ExitStatus)));
+    connect(m_dpkgProcess, SIGNAL(finished(int, QProcess::ExitStatus)),
+            this, SLOT(dpkgFinished(int, QProcess::ExitStatus)));
 }
 
 void AptWorker::dpkgStarted()
