@@ -23,6 +23,7 @@
 #include "deblistmodel.h"
 
 #include <QPair>
+#include <QDir>
 #include <QSet>
 #include <QtConcurrent>
 #include "utils.h"
@@ -720,7 +721,17 @@ bool PackagesManager::appendPackage(QString debPackage, bool isEmpty)
     const auto md5 = p->md5Sum();
     if (m_appendedPackagesMd5.contains(md5)) return false;
 
-    m_preparedPackages << debPackage;
+    qDebug() << mktempdir();
+    link(debPackage);
+    QFileInfo file(debPackage);
+    qDebug() << file.fileName();
+
+    qDebug() << m_tempLinkDir + file.fileName();
+
+    QApt::DebFile *de = new DebFile(m_tempLinkDir + file.fileName());
+    qDebug() << de->packageName();
+
+    m_preparedPackages << (m_tempLinkDir + file.fileName());
     m_appendedPackagesMd5 << md5;
     m_preparedMd5 << md5;
 
@@ -929,8 +940,42 @@ Package *PackagesManager::packageWithArch(const QString &packageName, const QStr
     return nullptr;
 }
 
+bool PackagesManager::mktempdir()
+{
+    QDir dir(m_tempLinkDir);
+    if (!dir.exists()) {
+        return dir.mkdir(m_tempLinkDir);
+    }
+    if (dir.exists())
+        return true;
+    return false;
+}
+
+bool PackagesManager::rmtempdir()
+{
+    QDir dir(m_tempLinkDir);
+    if (dir.exists()) {
+        return dir.removeRecursively();
+    }
+    if (!dir.exists())
+        return true;
+    return false;
+}
+
+void PackagesManager::link(QString debPath)
+{
+    QProcess proc;
+    qDebug() << "-s" << "\"" + debPath + "\"" << m_tempLinkDir;
+    proc.start("ln", QStringList() << "-s" <<  debPath << m_tempLinkDir);
+    proc.waitForFinished(-1);
+    qDebug() << proc.readAllStandardError();
+    qDebug() << proc.readAllStandardOutput();
+
+}
+
 PackagesManager::~PackagesManager()
 {
+    qDebug() << rmtempdir();
     delete dthread;
 }
 

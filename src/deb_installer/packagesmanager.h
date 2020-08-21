@@ -136,6 +136,9 @@ private:
                                                          const QApt::DependencyInfo &dependencyInfo);
     QApt::Package *packageWithArch(const QString &packageName, const QString &sysArch,
                                    const QString &annotation = QString());
+    bool mktempdir();
+    bool rmtempdir();
+    void link(QString debpath);
 
 private:
     QFuture<QApt::Backend *> m_backendFuture;
@@ -148,6 +151,7 @@ private:
     dealDependThread *dthread = nullptr;
     QList<int> m_dependInstallMark;
 
+    const QString m_tempLinkDir = "/tmp/tempLinkDir/";
 private:
 
     // fix bug:https://pms.uniontech.com/zentao/bug-view-37220.html
