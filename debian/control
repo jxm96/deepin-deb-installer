@@ -1,4 +1,4 @@
-Source: libqapt
+Source: deepin-deb-installer
 Section: kde
 Priority: optional
 Maintainer: Debian/Kubuntu KDE Extras Team <pkg-kde-extras@lists.alioth.debian.org>
