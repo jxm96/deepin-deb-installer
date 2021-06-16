@@ -201,7 +201,6 @@ const ConflictResult PackagesManager::isConflictSatisfy(const QString &arch, con
     for (const auto &conflict_list : conflicts) {
         for (const auto &conflict : conflict_list) {
             const QString name = conflict.packageName();
-                qInfo() << "111111"<<name;
             // 修复provides和conflict 中存在同一个虚包导致依赖判断错误的问题
             Package *p = m_backendFuture.result()->package(name);
 
@@ -211,8 +210,6 @@ const ConflictResult PackagesManager::isConflictSatisfy(const QString &arch, con
             }
             // arch error, conflicts
             if (!isArchMatches(arch, p->architecture(), p->multiArchType())) {
-                qDebug() << "PackagesManager:" << "conflicts package installed: " << arch << p->name() << p->architecture()
-                         << p->multiArchTypeString();
                 qInfo() << "PackagesManager:" << "conflicts package installed: " << arch << p->name() << p->architecture()
                          << p->multiArchTypeString();
                 return ConflictResult::err(name);
@@ -234,8 +231,6 @@ const ConflictResult PackagesManager::isConflictSatisfy(const QString &arch, con
             // mirror version is also break
             const auto mirror_result = Package::compareVersion(mirror_version, conflict_version);
             if (dependencyVersionMatch(mirror_result, type)) {
-                qDebug() << "PackagesManager:" <<  "conflicts package installed: " << arch << p->name() << p->architecture()
-                         << p->multiArchTypeString() << mirror_version << conflict_version;
                 qInfo() << "PackagesManager:" <<  "conflicts package installed: " << arch << p->name() << p->architecture()
                          << p->multiArchTypeString() << mirror_version << conflict_version;
                 return ConflictResult::err(name);
@@ -333,7 +328,6 @@ PackageDependsStatus PackagesManager::getPackageDependsStatus(const int index)
     const ConflictResult debConflitsResult = isConflictSatisfy(architecture, deb->conflicts());
 
     if (!debConflitsResult.is_ok()) {
-        qDebug() << "PackagesManager:" << "depends break because conflict" << deb->packageName();
         qInfo() << "PackagesManager:" << "depends break because conflict" << deb->packageName();
         ret.package = debConflitsResult.unwrap();
         ret.status = DebListModel::DependsBreak;
