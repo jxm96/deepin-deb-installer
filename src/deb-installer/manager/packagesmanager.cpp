@@ -419,6 +419,31 @@ PackageDependsStatus PackagesManager::getPackageDependsStatus(const int index)
     DebFile debFile(m_preparedPackages[index]);
     if(!debFile.isValid())
         return PackageDependsStatus::_break("");
+
+    const QString controlDepends = debFile.controlField("Depends");
+    qInfo() << __func__ <<controlDepends;
+    QStringList dependsList = controlDepends.split(",");
+    for(QString depend : dependsList) {
+        if(!depend.contains("|"))
+            dependsList.removeOne(depend);
+    }
+    m_orDepends.clear();
+    for(QString depend : dependsList){
+        depend = depend.remove(QRegExp("\\s"));
+        QStringList orDepends = depend.split("|");
+        QVector<QString> dependStatus;
+         for(QString depend : orDepends){
+             if(depend.contains("(")){
+                 int mid = depend.indexOf("(");
+                 depend = depend.left(mid);
+             }
+             dependStatus.append(depend);
+         }
+         m_orDepends.append(dependStatus);
+
+    }
+    qInfo() << m_orDepends;
+
     const QString architecture = debFile.architecture();
     PackageDependsStatus dependsStatus = PackageDependsStatus::ok();
 
@@ -545,35 +570,88 @@ void PackagesManager::packageCandidateChoose(QSet<QString> &choosed_set, const Q
 {
     for (const auto &info : candidateList) {
         Package *package = packageWithArch(info.packageName(), debArch, info.multiArchAnnotation());
-        if (!package) 
+        if (!package)
             continue;
 
         const auto choosed_name = package->name() + resolvMultiArchAnnotation(QString(), package->architecture());
         if (choosed_set.contains(choosed_name))
             break;
-        
-        //当前依赖未安装，则安装当前依赖。
-        if (package->installedVersion().isEmpty()) {
-            choosed_set << choosed_name;
-        } else {
-            // 当前依赖已安装，判断是否需要升级
-            //  修复升级依赖时，因为依赖包版本过低，造成安装循环。
-            // 删除无用冗余的日志
-            if (Package::compareVersion(package->installedVersion(), info.packageVersion()) < 0) {
+
+        QVector<QString> infos;
+        for(auto dInfo : m_orDepends){//遍历或依赖容器中容器中是否存在当前依赖
+            if(!dInfo.contains(package->name())){
+                continue;
+            }else {
+                infos = dInfo;
+            }
+        }
+
+        if(infos.isEmpty()) { //没有或依赖关系或者当前依赖不属于或依赖关系
+            qInfo() << "not ordepends or not contain depend";
+            //当前依赖未安装，则安装当前依赖。
+            if (package->installedVersion().isEmpty()) {
+                choosed_set << choosed_name;
+            } else {
+                // 当前依赖已安装，判断是否需要升级
+                //  修复升级依赖时，因为依赖包版本过低，造成安装循环。
+                // 删除无用冗余的日志
+                if (Package::compareVersion(package->installedVersion(), info.packageVersion()) < 0) {
+                    Backend *backend = m_backendFuture.result();
+                    if(!backend){
+                        qWarning()<<"libqapt backend loading error";
+                        return;
+                    }
+                    Package *updatePackage = backend->package(package->name()
+                                                              + resolvMultiArchAnnotation(QString(), package->architecture()));
+                    if (updatePackage)
+                        choosed_set << updatePackage->name() + resolvMultiArchAnnotation(QString(), package->architecture());
+                    else
+                        choosed_set << info.packageName() + " not found";
+
+                } else { //若依赖包符合版本要求,则不进行升级
+                    continue;
+                }
+            }
+        } else { // 存在或依赖且当前依赖属于或依赖关系
+            static bool isInstalling = false;
+            for (auto iter = infos.begin(); iter!=infos.end(); iter++) {
                 Backend *backend = m_backendFuture.result();
                 if(!backend){
                     qWarning()<<"libqapt backend loading error";
                     return;
                 }
-                Package *updatePackage = backend->package(package->name()
-                                                          + resolvMultiArchAnnotation(QString(), package->architecture()));
-                if (updatePackage)
-                    choosed_set << updatePackage->name() + resolvMultiArchAnnotation(QString(), package->architecture());
-                else
-                    choosed_set << info.packageName() + " not found";
-                
-            } else { //若依赖包符合版本要求,则不进行升级
-                continue;
+                Package *otherPackage = backend->package(*iter + resolvMultiArchAnnotation(QString(), debArch));
+                if (!otherPackage)
+                    continue;
+                qInfo() << __func__ << *iter << otherPackage->installedVersion() << m_dependsInfo[*iter].packageVersion();
+                if(otherPackage->compareVersion(otherPackage->installedVersion(),m_dependsInfo[*iter].packageVersion()) >= 0){
+                    //如果或依赖中其他依赖已安装，则当前依赖不进行下载
+                   isInstalling = true;
+                   break;
+                }
+            }
+            qInfo() << __func__ << isInstalling;
+            if(!isInstalling) {//若或依赖中其他依赖也需要下载或者存在问题，则当前依赖需要下载
+                if (package->installedVersion().isEmpty()) {
+                    choosed_set << choosed_name;
+                } else {
+                    if (Package::compareVersion(package->installedVersion(), info.packageVersion()) < 0) {
+                        Backend *backend = m_backendFuture.result();
+                        if(!backend)
+                            return;
+                        Package *updatePackage = backend->package(package->name()
+                                                                  + resolvMultiArchAnnotation(QString(), package->architecture()));
+                        if (updatePackage)
+                            choosed_set << updatePackage->name() + resolvMultiArchAnnotation(QString(), package->architecture());
+                        else
+                            choosed_set << info.packageName() + " not found";
+
+                    } else {
+                        continue;
+                    }
+                }
+            }else {
+                break;
             }
         }
 
@@ -590,7 +668,6 @@ void PackagesManager::packageCandidateChoose(QSet<QString> &choosed_set, const Q
         packageCandidateChoose(choosed_set, debArch, package->depends());
         break;
     }
-
 }
 
 QMap<QString, QString> PackagesManager::specialPackage()
@@ -964,6 +1041,13 @@ const PackageDependsStatus PackagesManager::checkDependsPackageStatus(QSet<QStri
                                                                       const QString &architecture,
                                                                       const QList<DependencyItem> &depends)
 {
+    m_dependsInfo.clear();
+    for(const auto &candicate_list : depends) {
+        for(const auto &info : candicate_list){
+            m_dependsInfo.insert(info.packageName(),info);
+        }
+    }
+
     PackageDependsStatus dependsStatus = PackageDependsStatus::ok();
 
     for (const auto &candicate_list : depends) {
@@ -985,6 +1069,25 @@ const PackageDependsStatus PackagesManager::checkDependsPackageStatus(QSet<QStri
     for (const auto &info : candicate) {
         const auto r = checkDependsPackageStatus(choosed_set, architecture, info);
         dependsStatus.minEq(r);
+
+        if (!m_orDepends.isEmpty() && r.isBreak()) {//安装包存在或依赖关系且当前依赖状态为break
+           QVector<QString> depends;
+            for (auto orDepends : m_orDepends) {//遍历或依赖组，检测当前依赖是否存在或依赖关系
+                 depends = orDepends;
+                 if (orDepends.contains(info.packageName())){
+                     depends.removeOne(info.packageName());//将当前依赖从或依赖中删除，检测或依赖中剩余依赖状态
+                     qInfo() << depends << orDepends;
+                     for(auto otherDepend : depends) {
+                         PackageDependsStatus status = checkDependsPackageStatus(choosed_set,architecture,m_dependsInfo.find(otherDepend).value());
+                         qInfo() << status.status;
+                         if(status.isBreak())//若剩余依赖中存在状态不为break，则说明依赖关系满足
+                             continue;
+                         dependsStatus.minEq(status);
+                     }
+                 }
+
+            }
+        }
 
         if (!dependsStatus.isBreak()) 
             break;
@@ -1124,8 +1227,19 @@ Package *PackagesManager::packageWithArch(const QString &packageName, const QStr
 
     // check virtual package providers
     for (auto *virtualPackage : backend->availablePackages())
-        if (virtualPackage->name() != packageName && virtualPackage->providesList().contains(packageName))
-            return packageWithArch(virtualPackage->name(), sysArch, annotation);
+        if (virtualPackage->name() != packageName && virtualPackage->providesList().contains(packageName)){
+            QVector<QString> infos;
+            for(auto dInfo : m_orDepends){//遍历或依赖容器中容器中是否存在当前依赖
+                if(!dInfo.contains(packageName))
+                    continue;
+                else
+                    infos = dInfo;
+            }
+            if(infos.isEmpty())//依赖包既是实包又是虚包
+               return packageWithArch(virtualPackage->name(), sysArch, annotation);
+            else
+               return nullptr;
+        }
     return nullptr;
 }
 
