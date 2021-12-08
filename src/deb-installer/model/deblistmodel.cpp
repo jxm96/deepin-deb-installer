@@ -1002,7 +1002,7 @@ void DebListModel::checkSystemVersion()
     case Dtk::Core::DSysInfo::UosHome: {                     //个人版
         QDBusInterface *dbusInterFace = new QDBusInterface("com.deepin.deepinid", "/com/deepin/deepinid", "com.deepin.deepinid");
         bool deviceMode = dbusInterFace->property("DeviceUnlocked").toBool();                            // 判断当前是否处于开发者模式
-        qInfo() << "DebListModel:" << "system editon:" << Dtk::Core::DSysInfo::uosEditionName() << "develop mode:" << deviceMode;
+        qInfo() << "DebListModel:" << "system editon:" << Dtk::Core::DSysInfo::uosEditionType() << "develop mode:" << deviceMode;
         m_isDevelopMode = deviceMode;
         delete dbusInterFace;
         break;
@@ -1024,7 +1024,7 @@ void DebListModel::checkSystemVersion()
     case Dtk::Core::DSysInfo::DeepinProfessional:
         QDBusInterface *dbusInterFace = new QDBusInterface("com.deepin.deepinid", "/com/deepin/deepinid", "com.deepin.deepinid");
         bool deviceMode = dbusInterFace->property("DeviceUnlocked").toBool();                            // 判断当前是否处于开发者模式
-        qInfo() << "DebListModel:" << "system editon:" << Dtk::Core::DSysInfo::uosEditionName() << "develop mode:" << deviceMode;
+        qInfo() << "DebListModel:" << "system editon:" << Dtk::Core::DSysInfo::uosEditionType() << "develop mode:" << deviceMode;
         m_isDevelopMode = deviceMode;
         delete dbusInterFace;
         break;
