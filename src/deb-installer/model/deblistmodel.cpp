@@ -855,20 +855,27 @@ void DebListModel::showNoDigitalErrWindow()
     Ddialog->addButton(QString(tr("Proceed", "button")), true, DDialog::ButtonRecommend);  //添加前往按钮
     Ddialog->show();    //显示弹窗
 
+    //消息框reject后的操作，包括点击取消按钮、关闭图标、按ESC退出
+    std::function<void(void)> rejectOperate = [this, Ddialog](){
+        this->slotNoDigitalSignature();
+        Ddialog->deleteLater();
+    };
+
     //取消按钮
     QPushButton *btnCancel = qobject_cast<QPushButton *>(Ddialog->getButton(0));
-    connect(btnCancel, &DPushButton::clicked, this, &DebListModel::slotNoDigitalSignature);
-    connect(btnCancel, &DPushButton::clicked, Ddialog, &DDialog::deleteLater);
+    connect(btnCancel, &DPushButton::clicked, rejectOperate);
+
+    //关闭图标
+    connect(Ddialog, &DDialog::aboutToClose, rejectOperate);
+
+    //ESC退出
+    connect(Ddialog, &DDialog::rejected, rejectOperate);
 
     //前往按钮1
     QPushButton *btnProceedControlCenter = qobject_cast<QPushButton *>(Ddialog->getButton(1));
     connect(btnProceedControlCenter, &DPushButton::clicked, this, &DebListModel::slotShowDevelopModeWindow);
     connect(btnProceedControlCenter, &DPushButton::clicked, this, &QApplication::exit);
     connect(btnProceedControlCenter, &DPushButton::clicked, Ddialog, &DDialog::deleteLater);
-
-    //关闭图标
-    connect(Ddialog, &DDialog::aboutToClose, this, &DebListModel::slotNoDigitalSignature);
-    connect(Ddialog, &DDialog::aboutToClose, Ddialog, &DDialog::deleteLater);
 }
 
 
@@ -898,13 +905,21 @@ void DebListModel::showDigitalErrWindow()
     QPushButton *btnOK = qobject_cast<QPushButton *>(Ddialog->getButton(0));
     btnOK->setFocusPolicy(Qt::TabFocus);
     btnOK->setFocus();
+
+    //窗口退出操作，包括所有可以退出此窗口的操作
+    std::function<void(void)> exitOperate = [this, Ddialog](){
+        this->slotDigitalSignatureError();
+        Ddialog->deleteLater();
+    };
+
     // 点击弹出窗口的关闭图标按钮
-    connect(Ddialog, &DDialog::aboutToClose, this, &DebListModel::slotDigitalSignatureError);
-    connect(Ddialog, &DDialog::aboutToClose, Ddialog, &DDialog::deleteLater);
+    connect(Ddialog, &DDialog::aboutToClose, exitOperate);
 
     //点击弹出窗口的确定按钮
-    connect(btnOK, &DPushButton::clicked, this, &DebListModel::slotDigitalSignatureError);
-    connect(btnOK, &DPushButton::clicked, Ddialog, &DDialog::deleteLater);
+    connect(btnOK, &DPushButton::clicked, exitOperate);
+
+    //ESC退出
+    connect(Ddialog, &DDialog::rejected, exitOperate);
 }
 
 void DebListModel::showDevelopDigitalErrWindow(ErrorCode code)
@@ -987,9 +1002,11 @@ void DebListModel::checkSystemVersion()
     // 修改获取系统版本的方式 此前为  DSysInfo::deepinType()
 
 #if (DTK_VERSION >= DTK_VERSION_CHECK(5, 2, 2, 2))
+    qInfo() << "system code(UOS): " << Dtk::Core::DSysInfo::uosEditionType();
     switch (Dtk::Core::DSysInfo::uosEditionType()) {            //获取系统的类型
 #if (DTK_VERSION > DTK_VERSION_CHECK(5, 4, 10, 0))
     case Dtk::Core::DSysInfo::UosEducation:                     //教育版
+    case Dtk::Core::DSysInfo::UosDeviceEdition:                 //专用设备版
 #endif
     case Dtk::Core::DSysInfo::UosProfessional: //专业版
     case Dtk::Core::DSysInfo::UosHome: {                     //个人版
@@ -1010,6 +1027,7 @@ void DebListModel::checkSystemVersion()
         break;
     }
 #else
+    qInfo() << "system code(Deepin): " << Dtk::Core::DSysInfo::deepinType();
     switch (Dtk::Core::DSysInfo::deepinType()) {
     case Dtk::Core::DSysInfo::DeepinDesktop:
         m_isDevelopMode = true;
@@ -1089,13 +1107,17 @@ bool DebListModel::checkDigitalSignature()
 
 void DebListModel::installNextDeb()
 {
-    QString sPackageName = m_packagesManager->m_preparedPackages[m_operatingIndex];
-    QStringList strFilePath;
-    if (checkTemplate(sPackageName)) {                      //检查当前包是否需要配置
-        rmdir();                                            //删除临时路径
-        m_procInstallConfig->start("pkexec", QStringList() << "pkexec" << "deepin-deb-installer-dependsInstall" << "InstallConfig" << sPackageName, {}, 0, false);
-    } else {
-        installDebs();                                      //普通安装
+    m_packagesManager->resetPackageDependsStatus(m_operatingStatusIndex); //刷新软件包依赖状态
+    if(m_packagesManager->getPackageDependsStatus(m_operatingStatusIndex).isAvailable()) { //存在没有安装的依赖包，则进入普通安装流程执行依赖安装
+        installDebs();
+    } else { //如果当前包的依赖全部安装完毕，则进入配置判断流程
+        QString sPackageName = m_packagesManager->m_preparedPackages[m_operatingIndex];
+        if (checkTemplate(sPackageName)) { //检查当前包是否需要配置
+            rmdir(); //删除临时路径
+            m_procInstallConfig->start("pkexec", QStringList() << "pkexec" << "deepin-deb-installer-dependsInstall" << "InstallConfig" << sPackageName, {}, 0, false); //配置安装流程
+        } else {
+            installDebs(); //普通安装流程
+        }
     }
 }
 
@@ -1401,16 +1423,23 @@ void DebListModel::showProhibitWindow()
     Ddialog->show();
     QPushButton *btnOK = qobject_cast<QPushButton *>(Ddialog->getButton(0));
 
-
     btnOK->setFocusPolicy(Qt::TabFocus);
     btnOK->setFocus();
+
+    //窗口退出操作，包括所有可以退出此窗口的操作
+    std::function<void(void)> exitOperate = [this, Ddialog](){
+        this->slotShowProhibitWindow();
+        Ddialog->deleteLater();
+    };
+
     // 点击弹出窗口的关闭图标按钮
-    connect(Ddialog, &DDialog::aboutToClose, this, &DebListModel::slotShowProhibitWindow);
-    connect(Ddialog, &DDialog::aboutToClose, Ddialog, &DDialog::deleteLater);
+    connect(Ddialog, &DDialog::aboutToClose, exitOperate);
 
     //点击弹出窗口的确定按钮
-    connect(btnOK, &DPushButton::clicked, this, &DebListModel::slotShowProhibitWindow);
-    connect(btnOK, &DPushButton::clicked, Ddialog, &DDialog::deleteLater);
+    connect(btnOK, &DPushButton::clicked, exitOperate);
+
+    //ESC
+    connect(Ddialog, &DDialog::rejected, exitOperate);
 }
 
 bool DebListModel::checkBlackListApplication()
